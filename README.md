@@ -102,7 +102,7 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   },
   "env_vars": {
     "DB_HOST": "localhost",
-    "DB_PORT": "5432",
+    "DB_PORT": 5432,
     "LOG_LEVEL": "info"
   }
 }
@@ -145,7 +145,7 @@ export LOG_LEVEL=info
 | `db_host` | `DB_HOST` | 小写转大写 |
 | `redis.url` | `REDIS_URL` | 点号转下划线 |
 | `api-timeout` | `API_TIMEOUT` | 横线转下划线 |
-| 复杂值 | JSON 字符串 | 对象/数组序列化为 JSON |
+| 复杂值 | 原始 JSON | 对象/数组保持原始 JSON 类型 |
 
 ### 错误响应
 

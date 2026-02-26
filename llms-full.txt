@@ -33,10 +33,10 @@ X-API-Key: 550e8400-e29b-41d4-a716-446655440000
   },
   "env_vars": {
     "DB_HOST": "localhost",
-    "DB_PORT": "5432",
-    "DEBUG": "false",
-    "ALLOWED_ORIGINS": "[\"https://example.com\"]",
-    "RETRY": "{\"max_retries\":3,\"backoff_ms\":1000}"
+    "DB_PORT": 5432,
+    "DEBUG": false,
+    "ALLOWED_ORIGINS": ["https://example.com"],
+    "RETRY": {"max_retries": 3, "backoff_ms": 1000}
   }
 }
 ```
@@ -72,8 +72,8 @@ export MY_APP_DB_PORT=5432
 | `"hello world"` | `"hello world"` | 字符串原样 |
 | `5432` | `5432` | 数字转字符串 |
 | `true` | `true` | 布尔转字符串 |
-| `["a","b"]` | `["a","b"]` | 数组→JSON字符串 |
-| `{"k":"v"}` | `{"k":"v"}` | 对象→JSON字符串 |
+| `["a","b"]` | `["a","b"]` | 数组保持原始类型 |
+| `{"k":"v"}` | `{"k":"v"}` | 对象保持原始类型 |
 
 ## 错误处理
 
@@ -197,7 +197,7 @@ type AllConfigsResponse struct {
 	Project     string                 `json:"project"`
 	Environment string                 `json:"environment"`
 	Configs     map[string]interface{} `json:"configs"`
-	EnvVars     map[string]string      `json:"env_vars"`
+	EnvVars     map[string]interface{} `json:"env_vars"`
 }
 
 func (c *Client) GetConfig(project, env string) (map[string]interface{}, error) {

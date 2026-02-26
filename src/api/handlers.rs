@@ -44,7 +44,6 @@ pub struct ExportParams {
 
 impl IntoResponse for ConfigError {
     fn into_response(self) -> Response {
-        tracing::warn!("[DEBUG] ConfigError -> Response: {}", self);
         let status = match &self {
             ConfigError::ProjectNotFound(_) => StatusCode::NOT_FOUND,
             ConfigError::EnvironmentNotFound(_) => StatusCode::NOT_FOUND,
@@ -53,7 +52,6 @@ impl IntoResponse for ConfigError {
             ConfigError::Forbidden(_) => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        tracing::warn!("[DEBUG] Responding with status: {}", status);
         (status, Json(ErrorResponse { error: self.to_string() })).into_response()
     }
 }
@@ -65,15 +63,12 @@ fn validate_request(
     headers: &HeaderMap,
     project: &str,
 ) -> Result<(), ConfigError> {
-    tracing::info!("[DEBUG] validate_request: project={}", project);
     let api_key = headers
         .get("X-API-Key")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| ConfigError::Unauthorized("missing X-API-Key header".to_string()))?;
 
-    tracing::info!("[DEBUG] validate_request: got api_key={}", api_key);
     let (key_project, _) = center.validate_api_key(api_key)?;
-    tracing::info!("[DEBUG] validate_request: key belongs to project={}", key_project);
 
     if key_project != project {
         return Err(ConfigError::Forbidden(format!(
@@ -82,7 +77,6 @@ fn validate_request(
         )));
     }
 
-    tracing::info!("[DEBUG] validate_request: OK");
     Ok(())
 }
 
@@ -95,17 +89,10 @@ pub async fn get_all_configs(
     Path((project, env)): Path<(String, String)>,
     Query(params): Query<ExportParams>,
 ) -> Result<Json<AllConfigsResponse>, ConfigError> {
-    tracing::info!("[DEBUG] >>> get_all_configs: project={}, env={}", project, env);
-    tracing::info!("[DEBUG] Acquiring read lock...");
     let center = center.read().await;
-    tracing::info!("[DEBUG] Read lock acquired");
     validate_request(&center, &headers, &project)?;
-    tracing::info!("[DEBUG] Auth passed, calling get_merged_config...");
     let configs = center.get_merged_config(&project, &env)?;
-    tracing::info!("[DEBUG] get_merged_config OK, {} keys", configs.len());
     let env_vars = center.get_env_vars(&project, &env, params.prefix.as_deref())?;
-    tracing::info!("[DEBUG] get_env_vars OK, {} vars", env_vars.len());
-    tracing::info!("[DEBUG] <<< get_all_configs: returning response");
     Ok(Json(AllConfigsResponse {
         project,
         environment: env,
@@ -120,11 +107,9 @@ pub async fn get_single_config(
     headers: HeaderMap,
     Path((project, env, key)): Path<(String, String, String)>,
 ) -> Result<Json<SingleConfigResponse>, ConfigError> {
-    tracing::info!("[DEBUG] >>> get_single_config: project={}, env={}, key={}", project, env, key);
     let center = center.read().await;
     validate_request(&center, &headers, &project)?;
     let value = center.get_merged_config_item(&project, &env, &key)?;
-    tracing::info!("[DEBUG] <<< get_single_config: returning response");
     Ok(Json(SingleConfigResponse { key, value }))
 }
 
@@ -135,10 +120,7 @@ pub async fn export_env(
     Path((project, env)): Path<(String, String)>,
     Query(params): Query<ExportParams>,
 ) -> Result<String, ConfigError> {
-    tracing::info!("[DEBUG] >>> export_env: project={}, env={}", project, env);
     let center = center.read().await;
     validate_request(&center, &headers, &project)?;
-    let result = center.get_env_export(&project, &env, params.prefix.as_deref());
-    tracing::info!("[DEBUG] <<< export_env: returning response");
-    result
+    center.get_env_export(&project, &env, params.prefix.as_deref())
 }

@@ -16,7 +16,7 @@ Base URL: `http://{host}:3000`
   "project": "my-app",
   "environment": "prod",
   "configs": {"db_host": "localhost", "db_port": 5432},
-  "env_vars": {"DB_HOST": "localhost", "DB_PORT": "5432"}
+  "env_vars": {"DB_HOST": "localhost", "DB_PORT": 5432}
 }
 ```
 
@@ -46,7 +46,7 @@ export DB_PORT=5432
 
 db_host → DB_HOST, redis.url → REDIS_URL, api-timeout → API_TIMEOUT
 prefix=APP → APP_DB_HOST
-对象/数组值 → JSON 字符串
+对象/数组值 → 原始 JSON 类型
 
 ## 详细集成指南
 

@@ -69,9 +69,6 @@ async fn serve(config_dir: &str, port: &str) {
         }
     };
 
-    eprintln!("[DEBUG] ConfigCenter loaded from: {}", config_dir);
-    eprintln!("[DEBUG] Projects: {:?}", center.list_projects());
-
     let state: api::AppState = Arc::new(RwLock::new(center));
     let reload_state = state.clone();
     let reload_path = config_path.clone();
@@ -137,6 +134,6 @@ async fn serve(config_dir: &str, port: &str) {
     let router = api::create_router(state);
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    eprintln!("[DEBUG] API Server listening on: http://{}", addr);
+    tracing::info!("API Server started: http://{}", addr);
     axum::serve(listener, router).await.unwrap();
 }
