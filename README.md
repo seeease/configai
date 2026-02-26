@@ -162,3 +162,83 @@ API Server 通过 `notify` 监听配置目录变化，编辑 YAML 文件后自�
 ```bash
 cargo test
 ```
+
+## 生产部署
+
+使用 `start.sh` 一键构建并启动：
+
+```bash
+./start.sh
+```
+
+脚本流程：
+1. `cargo build --release` 构建
+2. 读取 `configai.pid`，kill 旧进程
+3. 后台启动新进程，记录 PID
+4. 日志按日期归档到 `logs/YYYYMM/DD.configai.log`
+
+等效手动操作：
+
+```
+cargo build --release
+kill $(cat configai.pid)
+RUST_LOG=configai=info nohup ./target/release/configai serve >> logs/202602/26.configai.log 2>&1 &
+echo $! > configai.pid
+```
+
+自定义端口和配置目录：
+
+```bash
+./start.sh --port 8080 --config-dir /etc/configai
+```
+
+部署目录结构：
+
+```
+/opt/configai/
+├── configai.pid
+├── start.sh
+├── config/
+│   ├── shared/
+│   └── projects/
+├── logs/
+│   └── 202602/
+│       └── 26.configai.log
+└── target/release/configai
+```
+
+## 二进制部署（无需源码）
+
+只需 `configai` 可执行文件和 `config/` 目录：
+
+```
+mkdir -p /opt/configai/config/projects/my-app
+cp configai /opt/configai/
+cd /opt/configai
+
+# 初始化示例配置
+./configai init
+
+# 前台启动
+RUST_LOG=configai=info ./configai serve
+
+# 后台启动
+RUST_LOG=configai=info nohup ./configai serve >> configai.log 2>&1 &
+
+# 指定端口和配置目录
+./configai serve --port 8080 --config-dir /etc/configai
+```
+
+最小部署目录：
+
+```
+/opt/configai/
+├── configai               # 可执行文件
+└── config/
+    ├── shared/
+    │   └── default.yaml
+    └── projects/
+        └── my-app/
+            ├── project.yaml
+            └── default.yaml
+```
