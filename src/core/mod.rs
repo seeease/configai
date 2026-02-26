@@ -21,7 +21,12 @@ impl ConfigCenter {
     }
 
     pub fn list_projects(&self) -> Vec<&str> {
-        self.storage.state().projects.keys().map(|s| s.as_str()).collect()
+        self.storage
+            .state()
+            .projects
+            .keys()
+            .map(|s| s.as_str())
+            .collect()
     }
 
     /// 合并配置：shared[env] 为底，project[env] 覆盖
@@ -48,8 +53,21 @@ impl ConfigCenter {
             merged.extend(shared_env.clone());
         }
 
-        // 项目配置覆盖
-        merged.extend(proj_env.clone());
+        // 项目配置深合并：同名 key 且双方都是 Object 时递归合并，否则项目覆盖
+        for (k, v) in proj_env {
+            match (merged.get(k), v) {
+                (Some(serde_json::Value::Object(base)), serde_json::Value::Object(over)) => {
+                    let mut m = base.clone();
+                    for (ik, iv) in over {
+                        m.insert(ik.clone(), iv.clone());
+                    }
+                    merged.insert(k.clone(), serde_json::Value::Object(m));
+                }
+                _ => {
+                    merged.insert(k.clone(), v.clone());
+                }
+            }
+        }
 
         // 解析环境变量替换
         let resolved: HashMap<String, serde_json::Value> = merged
@@ -105,19 +123,18 @@ impl ConfigCenter {
     }
 
     /// 生成 export 格式的字符串
-    pub fn get_env_export(
-        &self,
-        project: &str,
-        env: &str,
-        prefix: Option<&str>,
-    ) -> Result<String> {
+    pub fn get_env_export(&self, project: &str, env: &str, prefix: Option<&str>) -> Result<String> {
         let vars = self.get_env_vars(project, env, prefix)?;
         let mut lines: Vec<String> = vars
             .iter()
             .map(|(k, v)| {
                 let s = json_to_env_value(v);
                 if needs_quoting(&s) {
-                    format!("export {}=\"{}\"", k, s.replace('\\', "\\\\").replace('"', "\\\""))
+                    format!(
+                        "export {}=\"{}\"",
+                        k,
+                        s.replace('\\', "\\\\").replace('"', "\\\"")
+                    )
                 } else {
                     format!("export {}={}", k, s)
                 }

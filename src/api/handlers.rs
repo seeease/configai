@@ -20,7 +20,6 @@ pub struct AllConfigsResponse {
     pub project: String,
     pub environment: String,
     pub configs: HashMap<String, serde_json::Value>,
-    pub env_vars: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -52,7 +51,13 @@ impl IntoResponse for ConfigError {
             ConfigError::Forbidden(_) => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        (status, Json(ErrorResponse { error: self.to_string() })).into_response()
+        (
+            status,
+            Json(ErrorResponse {
+                error: self.to_string(),
+            }),
+        )
+            .into_response()
     }
 }
 
@@ -87,17 +92,14 @@ pub async fn get_all_configs(
     State(center): State<AppState>,
     headers: HeaderMap,
     Path((project, env)): Path<(String, String)>,
-    Query(params): Query<ExportParams>,
 ) -> Result<Json<AllConfigsResponse>, ConfigError> {
     let center = center.read().await;
     validate_request(&center, &headers, &project)?;
     let configs = center.get_merged_config(&project, &env)?;
-    let env_vars = center.get_env_vars(&project, &env, params.prefix.as_deref())?;
     Ok(Json(AllConfigsResponse {
         project,
         environment: env,
         configs,
-        env_vars,
     }))
 }
 
