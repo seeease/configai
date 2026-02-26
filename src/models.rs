@@ -1,44 +1,35 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-/// 完整的配置状态，用于内存存储和文件持久化
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ConfigState {
-    pub projects: Vec<Project>,
-    pub shared_group: SharedGroup,
-    pub api_keys: Vec<ApiKey>,
-}
-
-/// 项目
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Project {
-    pub name: String,
+/// 项目元信息（从 project.yaml 加载）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ProjectMeta {
+    #[serde(default)]
     pub description: Option<String>,
-    pub environments: Vec<Environment>,
+    #[serde(default)]
+    pub api_keys: Vec<ApiKeyEntry>,
 }
 
-/// 环境
+/// API Key 条目
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Environment {
-    pub name: String,
-    pub config_items: Vec<ConfigItem>,
-}
-
-/// 配置项（value 支持任意 JSON 值）
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ConfigItem {
+pub struct ApiKeyEntry {
     pub key: String,
-    pub value: serde_json::Value,
 }
 
-/// 公共配置组
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SharedGroup {
-    pub environments: Vec<Environment>,
+/// 完整的内存状态（从目录扫描构建）
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConfigState {
+    /// 项目名 -> 项目数据
+    pub projects: HashMap<String, ProjectData>,
+    /// 共享配置：环境名 -> 配置 KV
+    pub shared: HashMap<String, HashMap<String, serde_json::Value>>,
 }
 
-/// API Key
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ApiKey {
-    pub key: String,     // UUID v4
-    pub project: String, // 绑定的项目名
+/// 单个项目的数据
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProjectData {
+    pub meta: ProjectMeta,
+    /// 环境名 -> 配置 KV
+    pub environments: HashMap<String, HashMap<String, serde_json::Value>>,
 }

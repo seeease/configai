@@ -1,33 +1,53 @@
-# Config Center
+# configai
 
-> 轻量级配置中心服务，Rust 编写。TUI 终端管理 + REST API 配置读取，内存 + JSON 文件持久化，无外部数据库依赖。
+> 配置中心 REST API。客户端通过 HTTP GET + API Key 读取项目配置，支持 JSON 和环境变量两种格式。
 
-项目按 Project → Environment → ConfigItem 三层组织配置，支持跨项目共享配置组（SharedGroup），合并时项目配置覆盖共享配置。REST API 通过 API Key 认证，绑定到具体项目。
+Base URL: `http://{host}:3000`
+认证: 请求头 `X-API-Key: {key}`，Key 绑定到具体项目。
 
-## 文档
+## API 端点
 
-- [详细说明](llms-full.txt): 完整的架构、API 签名、数据模型、错误类型等技术细节
-- [使用说明](README.md): 构建运行、TUI 操作、REST API 使用示例
+### GET /api/v1/projects/{project}/envs/{env}/configs
+获取合并后的全部配置。
 
-## 源码
+响应:
+```json
+{
+  "project": "my-app",
+  "environment": "prod",
+  "configs": {"db_host": "localhost", "db_port": 5432},
+  "env_vars": {"DB_HOST": "localhost", "DB_PORT": "5432"}
+}
+```
 
-- [数据模型](src/models.rs): ConfigState, Project, Environment, ConfigItem, SharedGroup, ApiKey
-- [错误类型](src/error.rs): ConfigError 枚举及 Result 类型别名
-- [核心逻辑](src/core/mod.rs): ConfigCenter 结构体，所有业务操作的门面
-- [项目管理](src/core/project.rs): 项目 CRUD
-- [环境管理](src/core/env.rs): 环境 CRUD
-- [配置项管理](src/core/config.rs): 配置项 CRUD
-- [共享组](src/core/shared.rs): 共享配置 CRUD + 合并逻辑
-- [API Key](src/core/api_key.rs): API Key 生成、吊销、验证
-- [存储引擎](src/storage/file.rs): JSON 文件持久化
-- [REST API 路由](src/api/routes.rs): GET 端点定义
-- [API 处理器](src/api/handlers.rs): 请求处理 + 响应类型
-- [认证中间件](src/api/auth.rs): X-API-Key 验证
-- [TUI 应用](src/tui/app.rs): 终端管理界面
-- [入口](src/main.rs): 程序入口
+### GET /api/v1/projects/{project}/envs/{env}/configs/{key}
+获取单个配置项。
 
-## 设计文档
+响应: `{"key": "db_host", "value": "localhost"}`
 
-- [需求文档](.kiro/specs/config-center/requirements.md): 9 个需求及验收标准
-- [技术设计](.kiro/specs/config-center/design.md): 架构、接口、数据模型、正确性属性
-- [实现计划](.kiro/specs/config-center/tasks.md): 分层实现任务列表
+### GET /api/v1/projects/{project}/envs/{env}/export?prefix={PREFIX}
+导出为 shell 环境变量格式。prefix 可选。
+
+响应（纯文本）:
+```
+export DB_HOST=localhost
+export DB_PORT=5432
+```
+
+## 错误码
+
+- 401: 缺少或无效 API Key
+- 403: Key 无权访问该项目
+- 404: 项目/环境/配置项不存在
+
+响应: `{"error": "描述信息"}`
+
+## 环境变量转换
+
+db_host → DB_HOST, redis.url → REDIS_URL, api-timeout → API_TIMEOUT
+prefix=APP → APP_DB_HOST
+对象/数组值 → JSON 字符串
+
+## 详细集成指南
+
+- [完整集成文档](llms-full.txt): 多语言代码示例、Shell/Docker/K8s 集成、错误处理最佳实践

@@ -1,60 +1,111 @@
-# config-center
+# configai
 
-轻量级配置中心服务，使用 Rust 编写。提供 TUI 终端管理界面和 REST API 配置读取接口。数据存储采用内存 + JSON 文件持久化，无需外部数据库依赖。
+轻量级配置中心服务，Rust 编写。类似 nginx 的 conf.d 模式，用户直接编辑 YAML 文件管理配置，通过 REST API 对外提供配置读取服务。
 
-## 构建与运行
+## 快速开始
 
 ```bash
 # 构建
 cargo build --release
 
-# 运行（启动 TUI 管理界面）
-cargo run
+# 初始化配置目录（生成示例文件）
+cargo run -- init
+
+# 启动 API Server（默认端口 3000）
+cargo run -- serve
 ```
 
-运行后进入 TUI 界面，REST API 服务可在 TUI 中通过 Server 面板启停。
+## 配置目录结构
 
-## TUI 使用
+```
+config/
+├── shared/                    # 公共配置（所有项目共享）
+│   ├── default.yaml
+│   └── prod.yaml
+├── projects/
+│   ├── my-app/
+│   │   ├── project.yaml       # 项目元信息 + API Keys
+│   │   ├── default.yaml       # default 环境配置
+│   │   └── prod.yaml          # prod 环境配置
+│   └── another-app/
+│       ├── project.yaml
+│       └── default.yaml
+```
 
-### 快捷键
+规则：
+- `projects/` 下每个子目录是一个项目，目录名即项目名
+- `project.yaml` 存放项目描述和 API Keys
+- 其他 `*.yaml` 文件是环境配置，文件名即环境名
+- `shared/` 下的 YAML 文件是公共配置，文件名即环境名
+- 合并逻辑：shared 配置为底层，项目配置覆盖同名 key
 
-| 按键 | 功能 |
-|------|------|
-| `q` | 退出 |
-| `Tab` | 切换焦点（菜单 ↔ 内容） |
-| `↑↓` | 导航 |
-| `n` | 新建 / 生成 API Key |
-| `d` | 删除 / 吊销 |
-| `e` | 编辑配置项 |
-| `p` | 切换项目上下文 |
-| `v` | 切换环境上下文 |
-| `s` | 启停 API 服务（Server 面板） |
+## 配置文件示例
 
-### 典型工作流
+`config/projects/my-app/project.yaml`:
+```yaml
+description: "我的应用"
+api_keys:
+  - key: "550e8400-e29b-41d4-a716-446655440000"
+```
 
-1. 启动后在 Projects 面板按 `n` 创建项目
-2. 切换到 Environments 面板管理环境（创建项目时自动创建 `default` 环境）
-3. 在 Configs 面板按 `n` 添加配置项（key-value，value 支持任意 JSON 类型）
-4. 在 API Keys 面板按 `n` 生成 API Key
-5. 在 Server 面板按 `s` 启动 REST API 服务
-6. 使用 API Key 通过 REST API 读取配置
+`config/projects/my-app/prod.yaml`:
+```yaml
+db_host: localhost
+db_port: 5432
+api_keys:
+  - provider: openai
+    key: sk-xxx
+    weight: 3
+```
+
+`config/shared/prod.yaml`:
+```yaml
+log_level: info
+retry_config:
+  max_retries: 3
+  backoff_ms: 1000
+```
+
+## 命令行参数
+
+```bash
+# 默认启动 API Server
+cargo run -- serve
+
+# 指定配置目录和端口
+cargo run -- serve --config-dir /etc/configai --port 8080
+
+# 初始化配置目录
+cargo run -- init --config-dir ./my-config
+```
 
 ## REST API
 
-认证方式：`X-API-Key` 请求头，API Key 绑定到具体项目。
+认证方式：`X-API-Key` 请求头，API Key 在 `project.yaml` 中配置。
 
 ### 获取合并后的全部配置
-
-合并逻辑：项目配置 + 共享组配置，项目配置优先覆盖。
 
 ```bash
 curl -H "X-API-Key: YOUR_API_KEY" \
   http://localhost:3000/api/v1/projects/my-app/envs/prod/configs
 ```
 
-响应：
+响应（包含原始配置和环境变量映射）：
 ```json
-{"project": "my-app", "environment": "prod", "configs": {"db_host": "localhost", "log_level": "info"}}
+{
+  "project": "my-app",
+  "environment": "prod",
+  "configs": {
+    "db_host": "localhost",
+    "db_port": 5432,
+    "log_level": "info"
+  },
+  "env_vars": {
+    "DB_HOST": "localhost",
+    "DB_PORT": "5432",
+    "LOG_LEVEL": "info"
+  }
+}
 ```
 
 ### 获取单个配置项
@@ -64,10 +115,37 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   http://localhost:3000/api/v1/projects/my-app/envs/prod/configs/db_host
 ```
 
-响应：
-```json
-{"key": "db_host", "value": "localhost"}
+### 导出为环境变量
+
+```bash
+# 导出为 shell 环境变量格式
+curl -H "X-API-Key: YOUR_API_KEY" \
+  http://localhost:3000/api/v1/projects/my-app/envs/prod/export
+
+# 带前缀
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "http://localhost:3000/api/v1/projects/my-app/envs/prod/export?prefix=MY_APP"
+
+# 直接注入环境变量
+source <(curl -s -H "X-API-Key: YOUR_API_KEY" \
+  http://localhost:3000/api/v1/projects/my-app/envs/prod/export)
 ```
+
+输出：
+```
+export DB_HOST=localhost
+export DB_PORT=5432
+export LOG_LEVEL=info
+```
+
+### 环境变量转换规则
+
+| YAML key | 环境变量 | 说明 |
+|----------|---------|------|
+| `db_host` | `DB_HOST` | 小写转大写 |
+| `redis.url` | `REDIS_URL` | 点号转下划线 |
+| `api-timeout` | `API_TIMEOUT` | 横线转下划线 |
+| 复杂值 | JSON 字符串 | 对象/数组序列化为 JSON |
 
 ### 错误响应
 
@@ -75,18 +153,12 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 - API Key 与请求项目不匹配 → 403
 - 项目/环境/配置项不存在 → 404
 
-```json
-{"error": "project not found: my-app"}
-```
+## 热加载
 
-## 数据文件
-
-数据持久化到运行目录下的 `data.json` 文件。支持通过 Import/Export 功能进行全量状态的 JSON 导入导出，可用于分布式同步。
+API Server 通过 `notify` 监听配置目录变化，编辑 YAML 文件后自动重新加载，无需重启服务。
 
 ## 测试
 
 ```bash
 cargo test
 ```
-
-共 124 个单元测试，覆盖所有模块。

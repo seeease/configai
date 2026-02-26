@@ -1,3 +1,3 @@
-mod file;
+mod dir;
 
-pub use file::Storage;
+pub use dir::Storage;

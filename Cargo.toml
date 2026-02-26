@@ -1,5 +1,5 @@
 [package]
-name = "config-center"
+name = "configai"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,13 +7,13 @@ edition = "2021"
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 thiserror = "2"
-ratatui = "0.29"
-crossterm = "0.28"
+notify = "7"
 
 [dev-dependencies]
 proptest = "1"
