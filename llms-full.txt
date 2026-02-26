@@ -1,0 +1,153 @@
+# config-center
+
+> 轻量级配置中心服务：TUI 终端管理 + REST API 配置读取，内存 + JSON 文件持久化，无外部数据库依赖。
+
+## 技术栈
+
+- 语言: Rust (edition 2021)
+- HTTP: axum 0.8
+- 序列化: serde + serde_json
+- 异步运行时: tokio
+- TUI: ratatui + crossterm
+- 日志: tracing + tracing-subscriber
+- 错误处理: thiserror
+- API Key: uuid v4
+- 测试: proptest, tempfile
+
+## 架构
+
+```
+src/
+├── main.rs              # 入口，启动 TUI
+├── models.rs            # 数据模型: ConfigState, Project, Environment, ConfigItem, SharedGroup, ApiKey
+├── error.rs             # ConfigError 枚举 + Result 类型别名
+├── core/                # 业务逻辑
+│   ├── mod.rs           # ConfigCenter 结构体（门面）
+│   ├── project.rs       # 项目 CRUD
+│   ├── env.rs           # 环境 CRUD
+│   ├── config.rs        # 配置项 CRUD
+│   ├── shared.rs        # 共享组 + 合并逻辑
+│   └── api_key.rs       # API Key 管理
+├── storage/             # 持久化
+│   ├── mod.rs
+│   └── file.rs          # JSON 文件存储引擎
+├── api/                 # REST API
+│   ├── mod.rs
+│   ├── routes.rs        # GET 路由
+│   ├── handlers.rs      # 请求处理器 + 响应类型
+│   └── auth.rs          # X-API-Key 中间件
+└── tui/                 # 终端 UI
+    ├── mod.rs
+    └── app.rs           # TUI 应用 (ratatui)
+```
+
+## 数据模型
+
+- ConfigState: 顶层状态，包含 projects, shared_group, api_keys
+- Project: name, description, environments[]
+- Environment: name, config_items[]
+- ConfigItem: key (String), value (serde_json::Value)
+- SharedGroup: environments[] (跨项目共享配置)
+- ApiKey: key (UUID v4 String), project (String)
+
+## 核心概念
+
+- 项目隔离: 每个项目有独立的配置空间
+- 环境管理: dev/staging/prod 等，创建项目时自动创建 "default" 环境
+- 共享组: 跨项目共享配置，合并时项目配置覆盖共享配置
+- API Key: UUID v4，绑定到具体项目，用于 REST API 认证
+
+## ConfigCenter 公共 API
+
+### 构造
+- new(file_path: &Path) -> Result<Self>
+
+### 项目管理
+- create_project(name: &str, description: Option<&str>) -> Result<Project>
+- list_projects() -> Vec<&Project>
+- delete_project(name: &str) -> Result<()>
+
+### 环境管理
+- create_environment(project: &str, env_name: &str) -> Result<Environment>
+- list_environments(project: &str) -> Result<Vec<&Environment>>
+- delete_environment(project: &str, env_name: &str) -> Result<()>
+
+### 配置项管理
+- create_config_item(project: &str, env: &str, key: &str, value: Value) -> Result<ConfigItem>
+- update_config_item(project: &str, env: &str, key: &str, value: Value) -> Result<ConfigItem>
+- delete_config_item(project: &str, env: &str, key: &str) -> Result<()>
+- list_config_items(project: &str, env: &str) -> Result<Vec<&ConfigItem>>
+
+### 共享组
+- create_shared_item(env: &str, key: &str, value: Value) -> Result<ConfigItem>
+- update_shared_item(env: &str, key: &str, value: Value) -> Result<ConfigItem>
+- delete_shared_item(env: &str, key: &str) -> Result<()>
+- list_shared_items(env: &str) -> Result<Vec<&ConfigItem>>
+
+### 合并配置
+- get_merged_config(project: &str, env: &str) -> Result<HashMap<String, Value>>
+- get_merged_config_item(project: &str, env: &str, key: &str) -> Result<Value>
+
+合并逻辑: shared_group[env] 为基础，project[env] 覆盖同名 key。
+
+### API Key
+- generate_api_key(project: &str) -> Result<ApiKey>
+- revoke_api_key(key: &str) -> Result<()>
+- list_api_keys(project: &str) -> Result<Vec<&ApiKey>>
+- validate_api_key(key: &str) -> Result<&ApiKey>
+
+### 导入导出
+- export_all() -> Result<String>
+- import_all(json: &str) -> Result<()>
+
+全量 JSON 导入导出，可用于分布式同步。
+
+## REST API
+
+基础路径: /api/v1
+
+### 端点
+- GET /api/v1/projects/{project}/envs/{env}/configs — 获取合并后全部配置
+- GET /api/v1/projects/{project}/envs/{env}/configs/{key} — 获取单个配置项
+
+### 认证
+请求头: X-API-Key
+- 缺少 → 401 Unauthorized
+- 无效 → 401 Unauthorized
+- Key 绑定的项目与请求项目不匹配 → 403 Forbidden
+
+### 响应格式
+全部配置: {"project": "...", "environment": "...", "configs": {...}}
+单个配置: {"key": "...", "value": ...}
+错误: {"error": "..."}
+
+## 错误类型 (ConfigError)
+
+| 变体 | HTTP 状态码 |
+|------|------------|
+| ProjectNotFound | 404 |
+| ProjectAlreadyExists | 500 |
+| EnvironmentNotFound | 404 |
+| EnvironmentAlreadyExists | 500 |
+| ConfigItemNotFound | 404 |
+| ConfigItemAlreadyExists | 500 |
+| ApiKeyNotFound | 404 |
+| Unauthorized | 401 |
+| Forbidden | 403 |
+| StorageError | 500 |
+| SerializationError | 500 |
+| IoError | 500 |
+
+## 数据持久化
+
+文件: data.json (运行目录)
+格式: JSON，包含 projects[], shared_group, api_keys[]
+时机: 每次写操作后自动持久化
+
+## 构建与测试
+
+```
+cargo build --release
+cargo run
+cargo test          # 124 个单元测试
+```
