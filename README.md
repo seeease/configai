@@ -86,8 +86,8 @@ cargo run -- init --config-dir ./my-config
 ### 获取合并后的全部配置
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  http://localhost:3000/api/v1/projects/my-app/envs/prod/configs
+curl -s -H "X-API-Key: YOUR_API_KEY" \
+  http://localhost:3000/api/v1/projects/my-app/envs/prod/configs | jq
 ```
 
 响应（包含原始配置和环境变量映射）：
@@ -111,16 +111,16 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 ### 获取单个配置项
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  http://localhost:3000/api/v1/projects/my-app/envs/prod/configs/db_host
+curl -s -H "X-API-Key: YOUR_API_KEY" \
+  http://localhost:3000/api/v1/projects/my-app/envs/prod/configs/db_host | jq
 ```
 
 ### 导出为环境变量
 
 ```bash
 # 导出为 shell 环境变量格式
-curl -H "X-API-Key: YOUR_API_KEY" \
-  http://localhost:3000/api/v1/projects/my-app/envs/prod/export
+curl -s -H "X-API-Key: YOUR_API_KEY" \
+  http://localhost:3000/api/v1/projects/my-app/envs/prod/export | jq
 
 # 带前缀
 curl -H "X-API-Key: YOUR_API_KEY" \

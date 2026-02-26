@@ -48,25 +48,26 @@ impl ConfigCenter {
 
         let mut merged = HashMap::new();
 
-        // shared 作为底层
-        if let Some(shared_env) = state.shared.get(env) {
-            merged.extend(shared_env.clone());
+        // 1. shared/default.yaml（最低优先级）
+        if let Some(shared_default) = state.shared.get("default") {
+            merged.extend(shared_default.clone());
         }
 
-        // 项目配置深合并：同名 key 且双方都是 Object 时递归合并，否则项目覆盖
-        for (k, v) in proj_env {
-            match (merged.get(k), v) {
-                (Some(serde_json::Value::Object(base)), serde_json::Value::Object(over)) => {
-                    let mut m = base.clone();
-                    for (ik, iv) in over {
-                        m.insert(ik.clone(), iv.clone());
-                    }
-                    merged.insert(k.clone(), serde_json::Value::Object(m));
-                }
-                _ => {
-                    merged.insert(k.clone(), v.clone());
-                }
+        // 2. shared/{env}.yaml 覆盖 shared/default
+        if env != "default" {
+            if let Some(shared_env) = state.shared.get(env) {
+                deep_merge(&mut merged, shared_env);
             }
+        }
+
+        // 3. 项目 default.yaml
+        if let Some(proj_default) = proj.environments.get("default") {
+            deep_merge(&mut merged, proj_default);
+        }
+
+        // 4. 项目 {env}.yaml（最高优先级）
+        if env != "default" {
+            deep_merge(&mut merged, proj_env);
         }
 
         // 解析环境变量替换
@@ -142,6 +143,27 @@ impl ConfigCenter {
             .collect();
         lines.sort();
         Ok(lines.join("\n"))
+    }
+}
+
+/// 深合并：同名 key 且双方都是 Object 时递归合并子字段，否则 over 覆盖 base
+fn deep_merge(
+    base: &mut HashMap<String, serde_json::Value>,
+    over: &HashMap<String, serde_json::Value>,
+) {
+    for (k, v) in over {
+        match (base.get(k), v) {
+            (Some(serde_json::Value::Object(b)), serde_json::Value::Object(o)) => {
+                let mut m = b.clone();
+                for (ik, iv) in o {
+                    m.insert(ik.clone(), iv.clone());
+                }
+                base.insert(k.clone(), serde_json::Value::Object(m));
+            }
+            _ => {
+                base.insert(k.clone(), v.clone());
+            }
+        }
     }
 }
 
@@ -568,6 +590,7 @@ mod tests {
 
         let prod_cfg = center.get_merged_config("app", "production").unwrap();
         assert_eq!(prod_cfg["port"], serde_json::json!(80));
+        // production.yaml 覆盖 shared/default.yaml 的 log_level
         assert_eq!(prod_cfg["log_level"], serde_json::json!("warn"));
     }
 
