@@ -242,3 +242,32 @@ RUST_LOG=configai=info nohup ./configai serve >> configai.log 2>&1 &
             ├── project.yaml
             └── default.yaml
 ```
+
+## Docker 部署
+
+镜像支持 `linux/amd64` 和 `linux/arm64` 两种架构。
+
+```bash
+docker pull cloudbeer/configai:latest
+```
+
+运行时需要将配置目录挂载到容器内 `/app/config`：
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -v /path/to/your/config:/app/config \
+  cloudbeer/configai:latest
+```
+
+自定义端口和日志级别：
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -v /path/to/your/config:/app/config \
+  -e RUST_LOG=debug \
+  cloudbeer/configai:latest serve --port 8080
+```
+
+配置目录结构参考上方「配置目录结构」章节。
